@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Container, Form, Button, Alert, Card, Row, Col } from 'react-bootstrap';
+import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 
 const API_URL = import.meta.env.VITE_API_URL;
-
 
 function App() {
   const [file, setFile] = useState(null);
@@ -28,7 +27,7 @@ function App() {
     }
   };
 
-  // Handle file upload
+  // Handle file upload using Axios
   const handleUpload = async () => {
     if (!file) {
       setError('Please select a file first.');
@@ -40,17 +39,18 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/upload`, {
-        method: 'POST',
-        body: formData,
+      const response = await axios.post(`${API_URL}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error('File upload failed.');
       }
 
-      const data = await response.json();
-      console.log('Upload successful:', data);
+      const data = response.data;
+      console.log("Upload successful:", data);
 
       // Extract filenames from the response
       const excelFilename = new URL(data.excel_download_url, window.location.origin).searchParams.get('filename');
@@ -72,7 +72,7 @@ function App() {
     }
   };
 
-  // Handle Excel download
+  // Handle Excel download using Axios
   const handleDownloadExcel = async () => {
     if (!processedFiles.excelFilename) {
       setError('No Excel file available for download.');
@@ -80,12 +80,11 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/download-excel?filename=${processedFiles.excelFilename}`);
-      if (!response.ok) {
-        throw new Error('Failed to download Excel file.');
-      }
+      const response = await axios.get(`${API_URL}/download-excel?filename=${processedFiles.excelFilename}`, {
+        responseType: 'blob',
+      });
 
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -98,7 +97,7 @@ function App() {
     }
   };
 
-  // Handle JSON download
+  // Handle JSON download using Axios
   const handleDownloadJson = async () => {
     if (!processedFiles.jsonFilename) {
       setError('No JSON file available for download.');
@@ -106,12 +105,11 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/download-json?filename=${processedFiles.jsonFilename}`);
-      if (!response.ok) {
-        throw new Error('Failed to download JSON file.');
-      }
+      const response = await axios.get(`${API_URL}/download-json?filename=${processedFiles.jsonFilename}`, {
+        responseType: 'blob',
+      });
 
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -124,7 +122,7 @@ function App() {
     }
   };
 
-  // Handle graph visualization
+  // Handle graph visualization using Axios
   const handleVisualize = async () => {
     if (!processedFiles.graphFilename) {
       setError('No graph available for visualization.');
@@ -132,12 +130,11 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/download-graph?filename=${processedFiles.graphFilename}`);
-      if (!response.ok) {
-        throw new Error('Failed to load graph.');
-      }
+      const response = await axios.get(`${API_URL}/download-graph?filename=${processedFiles.graphFilename}`, {
+        responseType: 'blob',
+      });
 
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank'); // Open the graph in a new tab
     } catch (err) {
@@ -146,95 +143,89 @@ function App() {
   };
 
   return (
-    <Container className="py-5">
-      <Row className="justify-content-center">
-        <Col md={8} lg={6}>
-          <Card className="shadow-sm">
-            <Card.Body className="p-4">
+    <div className="container py-5">
+      <div className="row justify-content-center">
+        <div className="col-md-8 col-lg-6">
+          <div className="card shadow-sm">
+            <div className="card-body p-4">
               <h1 className="text-center mb-4">PDF Processor</h1>
 
               {/* File Upload Section */}
-              <Form>
-                <Form.Group className="mb-4">
-                  <Form.Label className="fw-bold">Upload PDF File</Form.Label>
-                  <Form.Control
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileChange}
-                    className="form-control-lg"
-                  />
-                  <Form.Text className="text-muted">Only PDF files are accepted.</Form.Text>
-                </Form.Group>
+              <div>
+                <label className="fw-bold d-block mb-2">Upload PDF File</label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileChange}
+                  className="form-control form-control-lg mb-2"
+                />
+                <small className="text-muted">Only PDF files are accepted.</small>
+              </div>
 
-                {/* Error Display */}
-                {error && (
-                  <Alert variant="danger" className="mb-4">
-                    {error}
-                  </Alert>
-                )}
-
-                {/* Action Buttons */}
-                <div className="d-grid gap-3">
-                  {/* Upload Button */}
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    onClick={handleUpload}
-                    disabled={!file || loading}
-                    className="shadow-sm"
-                  >
-                    {loading ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Uploading...
-                      </>
-                    ) : (
-                      'Upload PDF'
-                    )}
-                  </Button>
-
-                  {/* Download Excel Button */}
-                  <Button
-                    variant="success"
-                    size="lg"
-                    onClick={handleDownloadExcel}
-                    disabled={!processedFiles.excelFilename || loading}
-                    className="shadow-sm"
-                  >
-                    <i className="bi bi-file-earmark-excel me-2"></i>
-                    Download Excel
-                  </Button>
-
-                  {/* Download JSON Button */}
-                  <Button
-                    variant="warning"
-                    size="lg"
-                    onClick={handleDownloadJson}
-                    disabled={!processedFiles.jsonFilename || loading}
-                    className="shadow-sm text-white"
-                  >
-                    <i className="bi bi-filetype-json me-2"></i>
-                    Download JSON
-                  </Button>
-
-                  {/* Visualize Graph Button */}
-                  <Button
-                    variant="info"
-                    size="lg"
-                    onClick={handleVisualize}
-                    disabled={!processedFiles.graphFilename || loading}
-                    className="shadow-sm text-white"
-                  >
-                    <i className="bi bi-graph-up me-2"></i>
-                    Visualize Data
-                  </Button>
+              {/* Error Display */}
+              {error && (
+                <div className="alert alert-danger mt-3" role="alert">
+                  {error}
                 </div>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+              )}
+
+              {/* Action Buttons */}
+              <div className="d-grid gap-3 mt-4">
+                {/* Upload Button */}
+                <button
+                  className="btn btn-primary btn-lg shadow-sm"
+                  onClick={handleUpload}
+                  disabled={!file || loading}
+                >
+                  {loading ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Uploading...
+                    </>
+                  ) : (
+                    'Upload PDF'
+                  )}
+                </button>
+
+                {/* Download Excel Button */}
+                <button
+                  className="btn btn-success btn-lg shadow-sm"
+                  onClick={handleDownloadExcel}
+                  disabled={!processedFiles.excelFilename || loading}
+                >
+                  <i className="bi bi-file-earmark-excel me-2"></i>
+                  Download Excel
+                </button>
+
+                {/* Download JSON Button */}
+                <button
+                  className="btn btn-warning btn-lg shadow-sm text-white"
+                  onClick={handleDownloadJson}
+                  disabled={!processedFiles.jsonFilename || loading}
+                >
+                  <i className="bi bi-filetype-json me-2"></i>
+                  Download JSON
+                </button>
+
+                {/* Visualize Graph Button */}
+                <button
+                  className="btn btn-info btn-lg shadow-sm text-white"
+                  onClick={handleVisualize}
+                  disabled={!processedFiles.graphFilename || loading}
+                >
+                  <i className="bi bi-graph-up me-2"></i>
+                  Visualize Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
